@@ -4,41 +4,189 @@
     <meta charset="UTF-8">
     <title>Maps Project</title>
     <style>
-        /* Always set the map height explicitly to define the size of the div
-       * element that contains the map. */
-        #map {
-            height: 100%;
-        }
-        /* Optional: Makes the sample page fill the window. */
-        html, body {
+        html,
+        body {
+            font-family: Arial, sans-serif;
             height: 100%;
             margin: 0;
             padding: 0;
         }
+        .container {
+            height: 100%;
+            position: relative;
+        }
+        input {
+            font-size: 12px;
+        }
+        h1 {
+            color: #525454;
+            font-size: 22px;
+            margin: 0 0 10px 0;
+            text-align: center;
+        }
+        #hide-listings,
+        #show-listings {
+            width: 48%;
+        }
+        #map {
+            bottom:0;
+            height: 100%;
+            left: 362px;
+            position: absolute;
+            right: 0;
+        }
+        .options-box {
+            background: #fff;
+            border: 1px solid #999;
+            border-radius: 3px;
+            height: 100%;
+            line-height: 35px;
+            padding: 10px 10px 30px 10px;
+            text-align: left;
+            width: 340px;
+        }
+
+        #zoom-to-area-text {
+            position: relative;
+            width: 70%;
+        }
+
+        #zoom-to-area {
+            width: 24%;
+        }
     </style>
 </head>
 <body>
-<div id="map"></div>
+<div class="container">
+    <div class="options-box">
+        <h1>Find Your New NYC Home</h1>
+        <div>
+            <input id="show-listings" type="button" value="Show Listings">
+            <input id="hide-listings" type="button" value="Hide Listings">
+        </div>
+        <hr>
+        <div>
+            <input id="zoom-to-area-text" type="text" placeholder="Enter your favorite area!">
+            <input id="zoom-to-area" type="button" value="Zoom">
+        </div>
+        <div>
+            <span id="formatted-address"></span>
+            <span id="location"></span>
+        </div>
+    </div>
+    <div id="map"></div>
+</div>
 <script>
     var map;
+
+    var markers = [];
+
     function initMap(){
         // Creates a new map
         map = new google.maps.Map(document.getElementById('map'), {
-            center: {lat: -34.397, lng: 150.644},
+            center: {lat: 40.7413549, lng: -73.9980244},
             zoom: 8
         });
-        var tribeca = {lat: 40.719526, lng: -74.0089934};
-        var marker = new google.maps.Marker({
-            position: tribeca,
-            map: map,
-            title: 'First Marker!'
-        });
-        var infoWindow = new google.maps.InfoWindow({
-            content: "It's my lil info window!"
-        });
-        marker.addListener('click', function(){
+
+        // Real estate listings to show the user.
+        // These would typically be stored in a database
+        var locations = [
+            {title: 'Park Ave Penthouse', location: {lat: 40.7713024, lng: -73.9632393}},
+            {title: 'Chelsea Loft', location: {lat: 40.7444883, lng: -73.9949465}},
+            {title: 'Union Square Open Floor Plan', location: {lat: 40.7347062, lng: -73.9895759}},
+            {title: 'East Village Studio', location: {lat: 40.7281777, lng: -73.984377}},
+            {title: 'TriBeCa Artsy Pad', location: {lat: 40.7195264, lng: -74.0089934}},
+            {title: 'Chinatown Homey Space', location: {lat: 40.7180628, lng: -73.9961237}}
+        ];
+
+        var largeInfoWindow = new google.maps.InfoWindow();
+        var bounds = new google.maps.LatLngBounds();
+
+        // Use the location array to create an array of markers
+        for (var i = 0; i < locations.length; i++){
+            var position = locations[i].location;
+            var title = locations[i].title;
+
+            var marker = new google.maps.Marker({
+                position: position,
+                title: title,
+                animation: google.maps.Animation.DROP,
+                icon: 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png',
+                id: i
+            });
+            // Push the marker to our markers array
+            markers.push(marker);
+            // Extend boundaries for each marker added
+            bounds.extend(marker.position);
+            // Set listener for infowindow
+            marker.addListener('click', function(){
+                populateInfoWindow(this, largeInfoWindow);
+            });
+        }
+
+        document.getElementById('show-listings').addEventListener('click', showListings);
+        document.getElementById('hide-listings').addEventListener('click', hideListings);
+
+        document.getElementById('zoom-to-area').addEventListener('click', function(){
+            zoomToArea();
+        })
+    }
+
+    // Takes input value of nearby area input and locates it, then zooms to that area
+    function zoomToArea(){
+        var geocoder = new google.maps.Geocoder();
+        var address = document.getElementById('zoom-to-area-text').value;
+
+        if(address == ''){
+            window.alert('Please enter an area or address.');
+        } else {
+            geocoder.geocode({
+                address: address,
+                componentRestrictions: {locality: 'New York'}
+            }, function(results, status){
+                if (status == google.maps.GeocoderStatus.OK){
+                    map.setCenter(results[0].geometry.location);
+                    map.setZoom(15);
+
+                    document.getElementById('formatted-address').innerHTML = results[0].formatted_address;
+                    document.getElementById('location').innerHTML = results[0].geometry.location;
+                } else {
+                    window.alert("We couldn't find that area. Please try a different location.");
+                }
+            })
+        }
+    }
+
+    // Populate the infowindow when a marker is clicked. Only one will be open at a time
+    function populateInfoWindow(marker, infoWindow){
+        // Check if window is already open on this marker
+        if(infoWindow.marker != marker){
+            infoWindow.marker = marker;
+            infoWindow.setContent(marker.title);
             infoWindow.open(map, marker);
-        });
+            // Clear marker if infoWindow is closed
+            infoWindow.addListener('closeclick', function(){
+                infoWindow.setMarker = null;
+            });
+        }
+    }
+
+    // Loop through and display all markers
+    function showListings(){
+        var bounds = new google.maps.LatLngBounds();
+        // Extend boundaries of map for each marker
+        for (var i = 0; i < markers.length; i++){
+            markers[i].setMap(map);
+            bounds.extend(markers[i].position);
+        }
+        map.fitBounds(bounds);
+    }
+
+    // Hides all markers
+    function hideListings(){
+        for(var i = 0; i < markers.length; i++){
+            markers[i].setMap(null);
+        }
     }
 </script>
 <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyA-ewsDqceMylcRuwTCH8tpQy-6anbRBmg&callback=initMap"
